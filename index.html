@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>モンストスタジアムデータベース</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .filter-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .filter-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .filter-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .number-range {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .multiselect-dropdown {
+            position: relative;
+            width: 300px;
+        }
+        .multiselect-dropdown select {
+            width: 100%;
+            min-height: 100px;
+        }
+        .data-container {
+            position: relative;
+            overflow: auto;
+            height: 600px;
+            width: 100%;
+        }
+
+        * 仮想スクロール用のスタイル追加 */
+        .virtual-scroll-content {
+            position: relative;
+            width: 100%;
+        }
+        
+        .virtual-scroll-item {
+            position: absolute;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }   
+        
+        fixed-column {
+            position: sticky;
+            left: 0;
+            background-color: #f8f9fa;
+            z-index: 1;
+            will-change: transform;
+        }
+        
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 200px;
+            background-color: inherit;
+        }
+        
+        th {
+            position: sticky;
+            top: 0;
+            background-color: #f8f9fa;
+            z-index: 2;
+            will-change: transform;
+        }
+        
+        /* 左上角のセルは最前面に */
+        .fixed-column.header-cell {
+            z-index: 3;
+        }
+        
+        /* アクティブフィルター表示エリア */
+        .active-filters {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-height: 40px;
+        }
+        .filter-tag {
+            display: inline-block;
+            padding: 4px 8px;
+            margin: 2px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+        }
+        .filter-tag button {
+            margin-left: 5px;
+            padding: 0 4px;
+            background: none;
+            border: none;
+            color: #dc3545;
+            cursor: pointer;
+        }
+        
+        /* その他のスタイル */
+        .filter-type-select {
+            margin-bottom: 10px;
+        }
+        .exact-match-checkbox {
+            margin-left: 10px;
+        }
+        th:hover {
+            background-color: #e9ecef;
+        }
+        th::after {
+            content: '↕';
+            position: absolute;
+            right: 8px;
+            color: #999;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        select, input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-size: 18px;
+            color: #666;
+        }
+        .error {
+            color: #dc3545;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #dc3545;
+            border-radius: 4px;
+            background-color: #f8d7da;
+        }
+        .update-info {
+            color: #0c5460;
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        /* 新しい乗算機能用のスタイルを追加 */
+        .multiplication-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .multiplication-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .multiplication-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        
+        .multiplication-search {
+            width: 100%;
+            max-width: 300px;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .value-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+        }
+        
+        .value-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 5px;
+        }
+        
+        .multiplier-input {
+            width: 80px;
+            padding: 4px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .target-column-select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <div class="update-info" id="updateInfo"></div>
+        
+        <!-- 並び替えセクション -->
+        <div class="filter-section">
+            <h3>並び替え</h3>
+            <div class="filter-group">
+                <select id="sortColumn">
+                    <option value="">列を選択</option>
+                </select>
+                <select id="sortOrder">
+                    <option value="asc">昇順</option>
+                    <option value="desc">降順</option>
+                </select>
+                <button onclick="applySorting()">並び替え</button>
+            </div>
+        </div>
+
+        <!-- 絞り込みセクション -->
+        <div class="filter-section">
+            <h3>絞り込み</h3>
+            <!-- フィルター条件の表示エリア -->
+            <div id="activeFilters" class="active-filters"></div>
+            
+            <div class="filter-group">
+                <select id="filterColumn" onchange="handleColumnChange()">
+                    <option value="">列を選択</option>
+                </select>
+                
+                <!-- フィルタータイプ選択 -->
+                <div class="filter-type-select">
+                    <select id="filterType" onchange="handleFilterTypeChange()">
+                        <option value="text">テキスト検索</option>
+                        <option value="number">数値範囲</option>
+                        <option value="select">値一覧</option>
+                    </select>
+                    <label class="exact-match-checkbox">
+                        <input type="checkbox" id="exactMatch">
+                        完全一致
+                    </label>
+                </div>
+
+                <!-- テキスト検索 -->
+                <div id="textFilter" class="filter-input">
+                    <input type="text" id="textFilterValue" placeholder="テキストを入力">
+                </div>
+
+                <!-- 数値範囲 -->
+                <div id="numberFilter" class="filter-input number-range" style="display: none;">
+                    <input type="number" id="numberFilterMin" placeholder="最小値">
+                    <span>～</span>
+                    <input type="number" id="numberFilterMax" placeholder="最大値">
+                </div>
+
+                <!-- 値一覧 -->
+                <div id="multiSelect" class="filter-input multiselect-dropdown" style="display: none;">
+                    <select id="multiSelectValues" multiple>
+                    </select>
+                </div>
+
+                <button onclick="addFilter()">フィルター追加</button>
+                <button onclick="resetAllFilters()">すべてリセット</button>
+
+                <!-- 乗算機能セクションを追加 -->
+                <div class="multiplication-section">
+                    <h3>値による乗算</h3>
+                    <div class="multiplication-controls">
+                        <div>
+                            <label>検索対象の列:</label>
+                            <select id="searchColumns" multiple class="target-column-select">
+                                <!-- 列は動的に追加されます -->
+                            </select>
+                        </div>
+                        <div>
+                            <label>乗算対象の列:</label>
+                            <select id="targetColumn" class="target-column-select">
+                                <!-- 数値列のみ動的に追加されます -->
+                            </select>
+                        </div>
+                        <button onclick="searchValues()">値を検索</button>
+                    </div>
+                    
+                    <input type="text" id="valueSearch" placeholder="値を検索..." class="multiplication-search">
+                    
+                    <div id="valueList" class="value-list">
+                        <!-- 値一覧が動的に追加されます -->
+                    </div>
+                    
+                    <div id="selectedValues" style="margin-top: 10px;">
+                        <!-- 選択された値と倍率が表示されます -->
+                    </div>
+                    
+                    <button onclick="applyMultiplication()" style="margin-top: 10px;">乗算を適用</button>
+                    <button onclick="resetMultiplication()" style="margin-top: 10px;">リセット</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="data-container">
+        <div id="loading" class="loading">データを読み込んでいます...</div>
+        <div id="error" class="error" style="display: none;"></div>
+        <table id="dataTable">
+            <thead>
+                <tr id="headerRow"></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script>
+        let data = [];
+        let originalData = [];
+        let columns = [];
+        let activeFilters = [];
+        let lastUpdate = null;
+        let selectedMultipliers = new Map(); // 選択された値と倍率を保存
+        let originalNumericValues = new Map(); // 元の数値を保存
+    
+        // 仮想スクロールの設定
+        const ROW_HEIGHT = 50; // 行の高さ
+        const VISIBLE_ROWS = 15; // 表示する行数
+        let virtualScrollOffset = 0;
+        let throttleTimer = null;
+        
+        // データのバッチ処理用の設定
+        const BATCH_SIZE = 50; // 一度に処理する行数
+        
+        // メモ化用のキャッシュ
+        const valueCache = new Map();
+        const filterCache = new Map();
+        
+        const baseColumns = [
+            'キャラクター名',
+            '進化形態',
+            'No.',
+            'レア度',
+            '属性',
+            '種族',
+            '撃種',
+            '戦型',
+            '入手方法',
+            'ゲージ'
+        ];
+
+        // グループ化された列の定義（順序を保持）
+        const orderedColumnGroups = [
+            {
+                name: '素アビ',
+                columns: ['素アビ1', '素アビ2', '素アビ3', '素アビ4', '素アビ5', '素アビ6'],
+                displayColumns: ['素アビ1', '素アビ2', '素アビ3', '素アビ4', '素アビ5', '素アビ6']
+            },
+            {
+                name: 'ゲージアビリティ',
+                columns: ['ゲージアビリティ1', 'ゲージアビリティ2', 'ゲージアビリティ3', 'ゲージアビリティ4'],
+                displayColumns: ['ゲージアビリティ1', 'ゲージアビリティ2', 'ゲージアビリティ3', 'ゲージアビリティ4']
+            },
+            {
+                name: 'コネクトスキル',
+                columns: ['コネクトスキル1', 'コネクトスキル2', 'コネクトスキル3'],
+                displayColumns: ['コネクトスキル1', 'コネクトスキル2', 'コネクトスキル3']
+            }
+        ];
+
+        // グループ化された列の後に続く基本列
+        const postGroupColumns = [
+            'コネクト条件',
+            'ショットスキル',
+            'アシストスキル',
+            'HP',
+            'ATK',
+            'ATK（ゲージ）',
+            'SPD',
+            'SS名',
+            'SS説明文',
+            '１段階目',
+            '２段階目',
+            '主友情',
+            '主友情威力',
+            '主友情説明文',
+            '副友情',
+            '副友情威力',
+            '副友情説明文'
+        ];
+    
+        // columnGroupsオブジェクトを作成
+        const columnGroups = {};
+        orderedColumnGroups.forEach(group => {
+            columnGroups[group.name] = {
+                columns: group.columns,
+                displayColumns: group.displayColumns
+            };
+        });
+
+        // 列がグループに属しているかチェック
+        function isColumnInGroup(columnName) {
+            return Object.values(columnGroups).some(group => 
+                group.displayColumns && group.displayColumns.includes(columnName));
+        }
+    
+        // グループ名から表示用の列名を取得
+        function getDisplayColumnsForGroup(groupName) {
+            return columnGroups[groupName]?.displayColumns || [];
+        }
+    
+        // グループ化された列の値を取得
+        function getGroupValues(row, groupName) {
+            const group = columnGroups[groupName];
+            if (!group) return [];
+            
+            return group.columns.map((col, index) => {
+                const colNames = columns.filter(c => c.startsWith(col));
+                const values = colNames.map(c => row[c]).filter(v => v !== '');
+                return values.length > 0 ? values[0] : '';
+            });
+        }
+    
+        // ヘッダー処理の改善
+        function processHeaders(jsonData) {
+            let headers = jsonData.table.cols.map(col => col.label || '');
+            let processedHeaders = [];
+            let headerCounts = {};
+            
+            headers.forEach((header, index) => {
+                if (header === '') {
+                    header = processedHeaders[index - 1] || '';
+                }
+                
+                if (header in headerCounts) {
+                    headerCounts[header]++;
+                    processedHeaders.push(`${header}_${headerCounts[header]}`);
+                } else {
+                    headerCounts[header] = 1;
+                    processedHeaders.push(header);
+                }
+            });
+            
+            return processedHeaders;
+        }
+    
+        // UI初期化
+        function setupUI() {
+            const filterColumn = document.getElementById('filterColumn');
+            const sortColumn = document.getElementById('sortColumn');
+            
+            // 列選択肢の設定
+            filterColumn.innerHTML = '<option value="">列を選択</option>';
+            sortColumn.innerHTML = '<option value="">列を選択</option>';
+            
+            // 指定された順序で列を追加
+            const addOption = (column) => {
+                const option = new Option(column, column);
+                filterColumn.appendChild(option.cloneNode(true));
+                sortColumn.appendChild(option);
+            };
+
+            // 基本列（先頭）
+            baseColumns.forEach(addOption);
+            
+            // グループ化された列
+            orderedColumnGroups.forEach(group => {
+                addOption(group.name);
+            });
+
+            // 残りの基本列
+            postGroupColumns.forEach(addOption);
+
+            // ヘッダー行の設定
+            const headerRow = document.getElementById('headerRow');
+            headerRow.innerHTML = '';
+
+            // 基本列のヘッダー（先頭）
+            baseColumns.forEach((column, index) => {
+                const th = document.createElement('th');
+                th.textContent = column;
+                th.onclick = () => handleHeaderClick(column);
+                if (index === 0) th.classList.add('fixed-column', 'header-cell');
+                headerRow.appendChild(th);
+            });
+
+            // グループ化された列のヘッダー
+            orderedColumnGroups.forEach(group => {
+                group.displayColumns.forEach(colName => {
+                    const th = document.createElement('th');
+                    th.textContent = colName;
+                    th.onclick = () => handleHeaderClick(group.name);
+                    headerRow.appendChild(th);
+                });
+            });
+
+            // 残りの基本列のヘッダー
+            postGroupColumns.forEach(column => {
+                const th = document.createElement('th');
+                th.textContent = column;
+                th.onclick = () => handleHeaderClick(column);
+                headerRow.appendChild(th);
+            });
+        }
+
+        // 数値列かどうかを判定する関数
+        function isNumericColumn(column) {
+            return data.some(row => {
+                const value = row[column];
+                return typeof value === 'number' || (typeof value === 'string' && !isNaN(value));
+            });
+        }
+
+        const originalSetupUI = setupUI;
+        setupUI = function() {
+            originalSetupUI();
+            
+            // 検索対象の列選択肢を設定
+            setupSearchColumns();
+            
+            const targetColumn = document.getElementById('targetColumn');
+            targetColumn.innerHTML = '<option value="">列を選択</option>';
+            
+            // 数値列のみを乗算対象として追加
+            columns.forEach(column => {
+                // グループ化された列は除外
+                if (!isColumnInGroup(column) && isNumericColumn(column)) {
+                    const option = new Option(column, column);
+                    targetColumn.appendChild(option);
+                }
+            });
+        };
+        
+        // 値一覧を表示する関数
+        function displayValues(values) {
+            const valueList = document.getElementById('valueList');
+            const searchText = document.getElementById('valueSearch').value.toLowerCase();
+            
+            valueList.innerHTML = '';
+            values
+                .filter(value => String(value).toLowerCase().includes(searchText))
+                .forEach(value => {
+                    const div = document.createElement('div');
+                    div.className = 'value-item';
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.value = value;
+                    checkbox.checked = selectedMultipliers.has(value);
+                    checkbox.onchange = () => handleValueSelection(value, checkbox.checked);
+                    
+                    const label = document.createElement('label');
+                    label.textContent = value;
+                    
+                    const multiplier = document.createElement('input');
+                    multiplier.type = 'number';
+                    multiplier.className = 'multiplier-input';
+                    multiplier.step = '0.1';
+                    multiplier.value = selectedMultipliers.get(value) || 1;
+                    multiplier.onchange = () => updateMultiplier(value, multiplier.value);
+                    
+                    div.appendChild(checkbox);
+                    div.appendChild(label);
+                    div.appendChild(multiplier);
+                    valueList.appendChild(div);
+                });
+        }
+
+        // 検索対象の列選択肢を設定する関数を修正
+        function setupSearchColumns() {
+            const searchColumns = document.getElementById('searchColumns');
+            searchColumns.innerHTML = '';
+            
+            // 基本列を追加
+            baseColumns.forEach(column => {
+                const option = new Option(column, column);
+                searchColumns.appendChild(option);
+            });
+            
+            // グループ化された列を追加（グループとして）
+            orderedColumnGroups.forEach(group => {
+                const option = new Option(group.name, group.name);
+                searchColumns.appendChild(option);
+            });
+            
+            // 残りの基本列を追加
+            postGroupColumns.forEach(column => {
+                const option = new Option(column, column);
+                searchColumns.appendChild(option);
+            });
+        }
+
+        function searchValues() {
+            const searchColumns = Array.from(document.getElementById('searchColumns').selectedOptions).map(opt => opt.value);
+            if (searchColumns.length === 0) {
+                alert('検索対象の列を選択してください');
+                return;
+            }
+            
+            const uniqueValues = new Set();
+            data.forEach(row => {
+                searchColumns.forEach(column => {
+                    if (column in columnGroups) {
+                        // グループ化された列の場合、すべてのグループ値を取得
+                        const groupValues = getGroupValues(row, column);
+                        groupValues.forEach(value => {
+                            if (value !== '') {
+                                uniqueValues.add(value);
+                            }
+                        });
+                    } else {
+                        // 通常の列の場合
+                        if (row[column]) {
+                            uniqueValues.add(row[column]);
+                        }
+                    }
+                });
+            });
+            
+            displayValues(Array.from(uniqueValues).sort());
+        }
+
+        // 値の選択を処理する関数
+        function handleValueSelection(value, isSelected) {
+            if (isSelected) {
+                selectedMultipliers.set(value, 1);
+            } else {
+                selectedMultipliers.delete(value);
+            }
+            updateSelectedValuesDisplay();
+        }
+        
+        // 倍率を更新する関数
+        function updateMultiplier(value, multiplier) {
+            selectedMultipliers.set(value, Number(multiplier));
+            updateSelectedValuesDisplay();
+        }
+        
+        // 選択された値の表示を更新する関数
+        function updateSelectedValuesDisplay() {
+            const selectedValues = document.getElementById('selectedValues');
+            selectedValues.innerHTML = '';
+            
+            selectedMultipliers.forEach((multiplier, value) => {
+                const div = document.createElement('div');
+                div.textContent = `${value}: ${multiplier}倍`;
+                selectedValues.appendChild(div);
+            });
+        }
+        
+        // 乗算を適用する関数
+        function applyMultiplication() {
+            const targetColumn = document.getElementById('targetColumn').value;
+            if (!targetColumn) {
+                alert('乗算対象の列を選択してください');
+                return;
+            }
+            
+            // 元の値を保存（初回のみ）
+            if (!originalNumericValues.has(targetColumn)) {
+                originalNumericValues.set(targetColumn, new Map(
+                    data.map(row => [row, Number(row[targetColumn])])
+                ));
+            }
+            
+            // 乗算を適用
+            data.forEach(row => {
+                const originalValue = originalNumericValues.get(targetColumn).get(row);
+                let multiplier = 1;
+                
+                // 選択された値と一致する場合、対応する倍率を乗算
+                selectedMultipliers.forEach((value, key) => {
+                    let found = false;
+                    
+                    // 通常の列をチェック
+                    if (Object.values(row).includes(key)) {
+                        found = true;
+                    }
+                    
+                    // グループ化された列をチェック
+                    orderedColumnGroups.forEach(group => {
+                        const groupValues = getGroupValues(row, group.name);
+                        if (groupValues.includes(key)) {
+                            found = true;
+                        }
+                    });
+                    
+                    if (found) {
+                        multiplier *= value;
+                    }
+                });
+                
+                row[targetColumn] = originalValue * multiplier;
+            });
+            
+            displayData();
+        }
+        
+        // 乗算をリセットする関数
+        function resetMultiplication() {
+            const targetColumn = document.getElementById('targetColumn').value;
+            if (targetColumn && originalNumericValues.has(targetColumn)) {
+                data.forEach(row => {
+                    row[targetColumn] = originalNumericValues.get(targetColumn).get(row);
+                });
+                selectedMultipliers.clear();
+                updateSelectedValuesDisplay();
+                displayData();
+            }
+        }
+        
+        // 値検索の入力イベントを設定
+        document.getElementById('valueSearch').addEventListener('input', () => {
+            const searchColumns = Array.from(document.getElementById('searchColumns').selectedOptions).map(opt => opt.value);
+            if (searchColumns.length > 0) {
+                const uniqueValues = new Set();
+                data.forEach(row => {
+                    searchColumns.forEach(column => {
+                        if (row[column]) {
+                            uniqueValues.add(row[column]);
+                        }
+                    });
+                });
+                displayValues(Array.from(uniqueValues).sort());
+            }
+            });
+
+        // フィルタータイプ変更ハンドラー
+        function handleFilterTypeChange() {
+            const filterType = document.getElementById('filterType').value;
+            const column = document.getElementById('filterColumn').value;
+            
+            document.getElementById('textFilter').style.display = 'none';
+            document.getElementById('numberFilter').style.display = 'none';
+            document.getElementById('multiSelect').style.display = 'none';
+            
+            if (column) {
+                updateFilterUI(column);
+            }
+        }
+
+        // 並び替え機能の修正
+        function applySorting() {
+            const column = document.getElementById('sortColumn').value;
+            const order = document.getElementById('sortOrder').value;
+            
+            if (!column) return;
+
+            data.sort((a, b) => {
+                let valA, valB;
+                
+                if (column in columnGroups) {
+                    // グループ化された列の場合、最初の非空値を使用
+                    valA = getGroupValues(a, column).find(v => v !== '') || '';
+                    valB = getGroupValues(b, column).find(v => v !== '') || '';
+                } else {
+                    valA = a[column] || '';
+                    valB = b[column] || '';
+                }
+
+                // 数値の場合は数値として比較
+                if (!isNaN(valA) && !isNaN(valB)) {
+                    return order === 'asc' ? 
+                        Number(valA) - Number(valB) : 
+                        Number(valB) - Number(valA);
+                }
+
+                // 文字列として比較
+                return order === 'asc' ? 
+                    String(valA).localeCompare(String(valB)) : 
+                    String(valB).localeCompare(String(valA));
+            });
+
+            displayData();
+        }
+
+        function setupMultiSelect() {
+            const select = document.getElementById('multiSelectValues');
+            const wrapper = select.parentElement;
+            
+            // 検索入力欄を追加
+            const searchInput = document.createElement('input');
+            searchInput.type = 'text';
+            searchInput.placeholder = '値を検索...';
+            searchInput.className = 'multiselect-search';
+            wrapper.insertBefore(searchInput, select);
+
+            // 元の選択肢を保持
+            const originalOptions = Array.from(select.options);
+
+            // 検索機能の実装
+            searchInput.addEventListener('input', (e) => {
+                const searchText = e.target.value.toLowerCase();
+                
+                // 選択肢をフィルタリング
+                select.innerHTML = '';
+                originalOptions.forEach(option => {
+                    if (option.text.toLowerCase().includes(searchText)) {
+                        select.appendChild(option.cloneNode(true));
+                    }
+                });
+            });
+        }
+
+        // フィルターUI更新
+        function updateFilterUI(column) {
+            const filterType = document.getElementById('filterType').value;
+            const isGroup = column in columnGroups;
+            
+            document.getElementById('textFilter').style.display = 'none';
+            document.getElementById('numberFilter').style.display = 'none';
+            document.getElementById('multiSelect').style.display = 'none';
+            
+            switch (filterType) {
+                case 'text':
+                    document.getElementById('textFilter').style.display = 'block';
+                    break;
+                case 'number':
+                    document.getElementById('numberFilter').style.display = 'block';
+                    break;
+                case 'select':
+                    const uniqueValues = getUniqueValues(column);
+                    const select = document.getElementById('multiSelectValues');
+                    select.innerHTML = '';
+                    uniqueValues.forEach(value => {
+                        if (value !== undefined) {
+                            const option = document.createElement('option');
+                            option.value = value;
+                            option.textContent = value || '(空白)';
+                            select.appendChild(option);
+                        }
+                    });
+                    document.getElementById('multiSelect').style.display = 'block';
+                    break;
+            }
+            if (filterType === 'select') {
+                const uniqueValues = getUniqueValues(column);
+                const select = document.getElementById('multiSelectValues');
+                select.innerHTML = '';
+                uniqueValues.forEach(value => {
+                    if (value !== undefined) {
+                        const option = document.createElement('option');
+                        option.value = value;
+                        option.textContent = value || '(空白)';
+                        select.appendChild(option);
+                    }
+                });
+                document.getElementById('multiSelect').style.display = 'block';
+                setupMultiSelect(); // 検索機能をセットアップ
+            }
+        }
+    
+        // ユニーク値の取得（グループ対応）
+        function getUniqueValues(column) {
+            if (column in columnGroups) {
+                const allValues = new Set();
+                originalData.forEach(row => {
+                    const groupValues = getGroupValues(row, column);
+                    groupValues.forEach(value => {
+                        if (value !== '') allValues.add(value);
+                    });
+                });
+                return [...allValues].sort();
+            }
+            
+            return [...new Set(originalData.map(row => row[column]))].sort((a, b) => {
+                if (a === undefined || a === '') return 1;
+                if (b === undefined || b === '') return -1;
+                return String(a).localeCompare(String(b));
+            });
+        }
+    
+        // フィルター適用
+        function applyFilter(row, filter) {
+            const isGroup = filter.column in columnGroups;
+            let valuesToCheck = isGroup ? 
+                getGroupValues(row, filter.column) : 
+                [row[filter.column]];
+    
+            switch (filter.type) {
+                case 'text':
+                    return valuesToCheck.some(value => {
+                        if (value === undefined || value === null) return false;
+                        if (filter.exactMatch) {
+                            return String(value) === filter.value;
+                        }
+                        return String(value).toLowerCase().includes(filter.value.toLowerCase());
+                    });
+                
+                case 'number':
+                    return valuesToCheck.some(value => {
+                        if (value === undefined || value === null || value === '') return false;
+                        const numValue = Number(value);
+                        if (isNaN(numValue)) return false;
+                        return numValue >= filter.value.min && numValue <= filter.value.max;
+                    });
+                
+                case 'select':
+                    return valuesToCheck.some(value => 
+                        filter.value.includes(value === undefined || value === null ? '' : String(value)));
+                
+                default:
+                    return true;
+            }
+        }
+    
+        // フィルター追加の処理を実装
+        function addFilter() {
+            const column = document.getElementById('filterColumn').value;
+            const filterType = document.getElementById('filterType').value;
+            const exactMatch = document.getElementById('exactMatch').checked;
+
+            if (!column) {
+                alert('列を選択してください');
+                return;
+            }
+
+            let filter = {
+                column: column,
+                type: filterType,
+                exactMatch: exactMatch
+            };
+
+            // フィルタータイプに応じた値の取得
+            switch (filterType) {
+                case 'text':
+                    const textValue = document.getElementById('textFilterValue').value.trim();
+                    if (!textValue) {
+                        alert('検索テキストを入力してください');
+                        return;
+                    }
+                    filter.value = textValue;
+                    break;
+
+                case 'number':
+                    const min = document.getElementById('numberFilterMin').value;
+                    const max = document.getElementById('numberFilterMax').value;
+                    if (!min && !max) {
+                        alert('最小値または最大値を入力してください');
+                        return;
+                    }
+                    filter.value = {
+                        min: min === '' ? -Infinity : Number(min),
+                        max: max === '' ? Infinity : Number(max)
+                    };
+                    break;
+
+                case 'select':
+                    const selected = Array.from(document.getElementById('multiSelectValues').selectedOptions)
+                        .map(option => option.value);
+                    if (selected.length === 0) {
+                        alert('値を選択してください');
+                        return;
+                    }
+                    filter.value = selected;
+                    break;
+
+                default:
+                    return;
+            }
+
+            // 既存の同じ列のフィルターを削除
+            activeFilters = activeFilters.filter(f => f.column !== column);
+            
+            // 新しいフィルターを追加
+            activeFilters.push(filter);
+
+            // フィルターの表示を更新
+            updateActiveFiltersDisplay();
+
+            // フィルターを適用
+            applyAllFilters();
+
+            // 入力値をクリア
+            clearFilterInputs();
+        }
+
+        // アクティブなフィルターの表示を更新
+        function updateActiveFiltersDisplay() {
+            const container = document.getElementById('activeFilters');
+            container.innerHTML = '';
+
+            activeFilters.forEach((filter, index) => {
+                const filterTag = document.createElement('span');
+                filterTag.className = 'filter-tag';
+                
+                // フィルターの説明テキストを生成
+                let filterText = `${filter.column}: `;
+                switch (filter.type) {
+                    case 'text':
+                        filterText += `"${filter.value}"${filter.exactMatch ? '(完全一致)' : ''}`;
+                        break;
+                    case 'number':
+                        filterText += `${filter.value.min} ～ ${filter.value.max}`;
+                        break;
+                    case 'select':
+                        filterText += filter.value.join(', ');
+                        break;
+                }
+
+                // 削除ボタンを追加
+                filterTag.innerHTML = `
+                    ${filterText}
+                    <button onclick="removeFilter(${index})">×</button>
+                `;
+                
+                container.appendChild(filterTag);
+            });
+        }
+
+        // フィルターの削除
+        function removeFilter(index) {
+            activeFilters.splice(index, 1);
+            updateActiveFiltersDisplay();
+            applyAllFilters();
+        }
+
+        // 入力値のクリア
+        function clearFilterInputs() {
+            document.getElementById('textFilterValue').value = '';
+            document.getElementById('numberFilterMin').value = '';
+            document.getElementById('numberFilterMax').value = '';
+            document.getElementById('multiSelectValues').selectedIndex = -1;
+            document.getElementById('exactMatch').checked = false;
+        }
+
+        // すべてのフィルターをリセット
+        function resetAllFilters() {
+            activeFilters = [];
+            updateActiveFiltersDisplay();
+            data = [...originalData];
+            displayData();
+            clearFilterInputs();
+        }
+
+        // フィルターの適用処理を改善
+        function applyAllFilters() {
+            if (activeFilters.length === 0) {
+                data = [...originalData];
+            } else {
+                data = originalData.filter(row =>
+                    activeFilters.every(filter => applyFilter(row, filter))
+                );
+            }
+            displayData();
+        }
+    
+        // データ表示の更新
+        function displayData() {
+            const tbody = document.querySelector('tbody');
+            tbody.innerHTML = '';
+            
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                
+                // 基本列（先頭）
+                baseColumns.forEach((column, colIndex) => {
+                    const td = document.createElement('td');
+                    td.textContent = row[column] ?? '';
+                    td.title = row[column] ?? '';
+                    if (colIndex === 0) td.classList.add('fixed-column');
+                    tr.appendChild(td);
+                });
+
+                // グループ化された列
+                orderedColumnGroups.forEach(group => {
+                    const groupValues = getGroupValues(row, group.name);
+                    groupValues.forEach(value => {
+                        const td = document.createElement('td');
+                        td.textContent = value;
+                        td.title = value;
+                        tr.appendChild(td);
+                    });
+                });
+
+                // 残りの基本列
+                postGroupColumns.forEach(column => {
+                    const td = document.createElement('td');
+                    td.textContent = row[column] ?? '';
+                    td.title = row[column] ?? '';
+                    tr.appendChild(td);
+                });
+                
+                tbody.appendChild(tr);
+            });
+        }
+    
+        // データ読み込みと更新チェック（既存のコード）
+        async function loadSheetData() {
+            const SHEET_ID = '1fRm-sHogu6KA_XEmgX7fu1FJpmUb8IZc-AAlI3Erz8k';
+            const SHEET_NAME = 'Sheet1';
+            const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${SHEET_NAME}`;
+            
+            try {
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('error').style.display = 'none';
+                
+                // デバッグ情報の表示
+                console.log('Fetching data from:', url);
+                
+                const response = await fetch(url);
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers));
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const text = await response.text();
+                console.log('Response text preview:', text.substring(0, 200));
+                
+                // Google Sheetsの応答から適切にJSONを抽出
+                const jsonString = text.match(/google\.visualization\.Query\.setResponse\((.*)\);/);
+                if (!jsonString || !jsonString[1]) {
+                    console.error('Response format:', text);
+                    throw new Error('Invalid response format - Unable to extract JSON data');
+                }
+                
+                let jsonData;
+                try {
+                    jsonData = JSON.parse(jsonString[1]);
+                    console.log('Parsed data structure:', {
+                        hasTable: !!jsonData.table,
+                        columnCount: jsonData.table?.cols?.length,
+                        rowCount: jsonData.table?.rows?.length
+                    });
+                } catch (parseError) {
+                    console.error('JSON parse error:', parseError);
+                    throw new Error('JSON parsing failed');
+                }
+                
+                if (!jsonData.table || !jsonData.table.cols || !jsonData.table.rows) {
+                    throw new Error('Invalid data structure in response');
+                }
+                
+                columns = processHeaders(jsonData);
+                console.log('Processed columns:', columns);
+                
+                const rawData = jsonData.table.rows.map(row => {
+                    const rowData = {};
+                    row.c.forEach((cell, index) => {
+                        const columnName = columns[index];
+                        if (cell !== null) {
+                            rowData[columnName] = cell.v ?? '';
+                        } else {
+                            rowData[columnName] = '';
+                        }
+                    });
+                    return rowData;
+                });
+
+                data = rawData;
+                originalData = rawData;
+                
+                lastUpdate = new Date();
+                document.getElementById('updateInfo').textContent = 
+                    `最終更新: ${lastUpdate.toLocaleString()}`;
+                
+                setupUI();
+                displayData();
+                document.getElementById('loading').style.display = 'none';
+                
+                console.log('Data loaded successfully:', {
+                    rowCount: rawData.length,
+                    columnCount: columns.length
+                });
+                
+            } catch (error) {
+                console.error('データの取得に失敗しました:', error);
+                console.error('Error details:', {
+                    message: error.message,
+                    stack: error.stack
+                });
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = 
+                    `データの読み込みに失敗しました: ${error.message}\n` +
+                    'スプレッドシートの権限設定を確認し、ページをリロードしてください。';
+            }
+        }
+    
+        // 更新チェック（既存のコード）
+        async function checkForUpdates() {
+            const SHEET_ID = '1fRm-sHogu6KA_XEmgX7fu1FJpmUb8IZc-AAlI3Erz8k';
+            const SHEET_NAME = 'Sheet1';
+            const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${SHEET_NAME}`;
+            
+            try {
+                const response = await fetch(url);
+                const text = await response.text();
+                
+                // Google Sheetsの応答から適切にJSONを抽出
+                const jsonString = text.match(/google\.visualization\.Query\.setResponse\((.*)\);/);
+                if (!jsonString || !jsonString[1]) {
+                    throw new Error('Invalid response format');
+                }
+                const jsonData = JSON.parse(jsonString[1]);
+                
+                const newData = jsonData.table.rows.reduce((acc, row) => {
+                    const rowData = {};
+                    row.c.forEach((cell, index) => {
+                        const columnName = columns[index];
+                        if (cell !== null) {
+                            const value = cell.v ?? '';
+                            rowData[columnName] = typeof value === 'number' ? 
+                                Number(value.toFixed(2)) : value;
+                        } else {
+                            rowData[columnName] = '';
+                        }
+                    });
+                    acc.push(rowData);
+                    return acc;
+                }, []);
+
+                // 簡易的な変更チェック（行数の比較）
+                const hasChanges = newData.length !== originalData.length;
+                
+                if (hasChanges) {
+                    originalData = newData;
+                    data = [...newData];
+                    
+                    lastUpdate = new Date();
+                    document.getElementById('updateInfo').textContent = 
+                        `最終更新: ${lastUpdate.toLocaleString()} (データが更新されました)`;
+                    
+                    applyAllFilters();
+                    if (document.getElementById('sortColumn').value) {
+                        applySorting();
+                    }
+                } else {
+                    document.getElementById('updateInfo').textContent = 
+                        `最終更新: ${lastUpdate.toLocaleString()} (変更なし)`;
+                }
+            } catch (error) {
+                console.error('更新の確認に失敗しました:', error);
+            }
+        }
+
+        // 初期化と定期更新の設定
+        loadSheetData();
+        setInterval(checkForUpdates, 30000);
+    </script>    
+</body>
+</html>    
